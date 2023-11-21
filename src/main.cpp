@@ -19,7 +19,7 @@ typedef int32_t in_chan_t;            // received sample size: low 24 of 32 bits
 typedef int16_t out_chan_t;           // as supported by AudioWAVServer
 constexpr size_t InChans = 2;         // received channels, see INMP441 datasheet
 constexpr size_t OutChans = 1;        // sent channels, see INMP441 datasheet
-constexpr size_t SampleRate = 11025;  // 2ch 22050 and up has gaps
+constexpr size_t SampleRate = 16000;  // recommended for MAX98357A
 
 
 constexpr size_t InChanBytes = sizeof(in_chan_t);
@@ -57,9 +57,23 @@ public:
     _in = NULL;
   }
 
+  /// square root amplifier curve: 
+  /// low volumes enhanced a lot, high volumes never over max
+  static void sqrt_level(out_chan_t &v2) {
+    bool negate = false;
+    if( v2 < 0 ) {
+      negate = true;
+      v2=-v2;
+    }
+    v2 = v2 - INT16_MAX;
+    v2 = INT16_MAX - (v2 * v2) / INT16_MAX;
+    if( negate ) {
+      v2 = -v2;
+    }
+  }
+
   /// amount of data available
   int available() { return (((_in->available() / InChanBytes) * OutChanBytes) / InChans) * OutChans; }
-  // int available() { return _in->available(); }
 
   /// Read 32bit, convert to 16bit and send to out stream
   size_t readBytes(uint8_t *buffer, size_t size) override {
@@ -84,26 +98,18 @@ public:
       for( size_t ch=0; ch < OutChans; ch++ ) {  // assumes OutChans <= InChans
         // convert one 24bit value in 32bits to 16bit value and store in buffer
         // *((out_chan_t *)buffer + i) = (out_chan_t)((value & 0xffffff) >> 8);
-        uint8_t *val = (uint8_t *)&value[ch];
+        uint8_t *val = (uint8_t *)&value[0];  // &value[ch]
         // INMP441 with L/R pin = Gnd: val[0-3] = [zero, noise, low, high]
         out_chan_t v2 = (out_chan_t)(val[3] << 8 | val[2]);
 
         // enhance low volume by applying square root curve
-        bool negate = false;
-        if( v2 < 0 ) {
-          negate = true;
-          v2=-v2;
-        }
-        v2 = v2 - INT16_MAX;
-        v2 = INT16_MAX - (v2 * v2) / INT16_MAX;
-        if( negate ) {
-          v2 = -v2;
-        }
+        sqrt_level(v2);
+        sqrt_level(v2);
 
         if( _maxval < v2 ) _maxval = v2;
 
-        buffer[OutChanBytes*OutChans*i+ch] = v2 & 0xff;  // val[2];    // low
-        buffer[OutChanBytes*OutChans*i+ch+1] = (v2 >> 8) & 0xff;  // val[3] ;  // high
+        buffer[(OutChanBytes*i+ch)*OutChans] = v2 & 0xff;  // val[2];    // low
+        buffer[(OutChanBytes*i+ch)*OutChans+1] = (v2 >> 8) & 0xff;  // val[3] ;  // high
       }
     }
 
@@ -129,7 +135,7 @@ private:
   uint32_t _read;
   uint32_t _last;
   uint32_t _written;
-  uint16_t _maxval;
+  out_chan_t _maxval;
 
   static const uint32_t _interval = 1000;
 };
@@ -137,8 +143,8 @@ private:
 
 I2SStream i2s;  // INMP441 delivers 24 as 32bit
 Convert024to16 cvt(i2s);  // convert 2ch 24bit to 1ch 16bit
-EncodedAudioStream enc(&Serial1, new ADPCMEncoder(AV_CODEC_ID_ADPCM_IMA_WAV));  // encode and write
-StreamCopy copier(enc, cvt, 128);  // data pump
+EncodedAudioStream enc(&Serial1, new ADPCMEncoder(AV_CODEC_ID_ADPCM_IMA_WAV));
+StreamCopy copier(enc, cvt, 1024);  // data pump
 
 
 void setup() {

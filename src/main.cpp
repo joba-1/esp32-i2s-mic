@@ -14,6 +14,7 @@
 #include <Arduino.h>
 
 #include "AudioTools.h"
+#include "AudioCodecs/CodecADPCM.h"
 
 // Contains MY_SSID and MY_PASS 
 #include "cred.h"
@@ -191,7 +192,11 @@ Convert024to16 cvt(i2s);
 // ExtendChan<out_chan_t, NumChan, 0> extend;  // one channel has no data, see INMP441 datasheet
 // ConverterFillLeftAndRight<out_chan_t> extend(RightIsEmpty); // fill both channels - or change to RightIsEmpty
 
-AudioWAVServer srv(MY_SSID, MY_PASS);  // Streaming with VLC and Chrome works, Firefox downloads.
+EncodedAudioStream dec(&Serial1, new ADPCMDecoder(AV_CODEC_ID_ADPCM_IMA_WAV)); // encode and write
+EncodedAudioStream enc(&dec, new ADPCMEncoder(AV_CODEC_ID_ADPCM_IMA_WAV)); // encode and write
+
+// AudioWAVServer srv(MY_SSID, MY_PASS);  // Streaming with VLC and Chrome works, Firefox downloads.
+StreamCopy copier(enc, cvt, 128); 
 
 
 void setup() {
@@ -208,15 +213,21 @@ void setup() {
 
   i2s.begin(icfg);
   cvt.begin();  // in, out);
+  enc.begin(out);
+  dec.begin(out);
 
-  srv.begin(cvt, out);  // , &extend);
+  // srv.begin(cvt, out);  // , &extend);
   // srv.begin() should have set correct bit rate but always picks 44100, so set again:
-  auto wcfg = srv.wavEncoder().defaultConfig();
-  wcfg.copyFrom(out);
-  srv.wavEncoder().setAudioInfo(wcfg);
+  // auto wcfg = srv.wavEncoder().defaultConfig();
+  // wcfg.copyFrom(out);
+  // srv.wavEncoder().setAudioInfo(wcfg);
+  uint8_t rx=18;
+  uint8_t tx=19;
+  Serial1.begin(460800, SERIAL_8N1, rx, tx, false, 200);
+  copier.begin();
 }
 
 
 void loop() {
-  srv.copy();
+  copier.copy();
 }

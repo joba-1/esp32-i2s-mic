@@ -1,12 +1,10 @@
 /**
- * Enhanced streams-i2s-webserver_wav.ino optimized for INMP441
+ * Encode I2S Mic with ADPCM and send to serial
  * 
- * - Features a flexible mono to multi channel converter
  * - #define COPY_LOG_OFF or change AudioLogger level to Warning to avoid hickups
  * - Adjust pin numbers in setup() according to your board
  * - Works fine with Chrome or VLC, my INMP441 and git main of ESP32 pio platform and arduino-audio-tools as of Nov 2023
  * - Works with I2S_MSB_FORMAT (datasheet), and also with I2S_STD_FORMAT, I2S_PHILIPS_FORMAT or I2S_LEFT_JUSTIFIED_FORMAT
- * - I see hickups with 44100 samples/s. Probably too much for the hardware?
  * 
  * have fun, JoBa-1
  */
@@ -15,53 +13,6 @@
 
 #include "AudioTools.h"
 #include "AudioCodecs/CodecADPCM.h"
-
-// Contains MY_SSID and MY_PASS 
-#include "cred.h"
-
-
-/**
- * @brief Extend channel Cx value of type T to all Cn channels
- */
-template<typename T, size_t Cn, size_t Cx>
-class ExtendChan : public BaseConverter {
-  public:
-  ExtendChan() : _max_val(0), _counter(0), _prev_ms(0) {}
-
-  size_t convert(uint8_t *src, size_t size) {
-    T *chan = (T*)src;
-    size_t samples = (size / Cn) / sizeof(T);
-    for( size_t s=0; s<samples; s++ ) {
-      T val = (Cx < Cn) ? chan[s*Cn+Cx] : 0;
-
-      for( size_t c=0; c<Cn; c++ ) {
-        if( c != Cx ) {
-          chan[s*Cn+c] = val;
-        }
-      }
-
-      if( _max_val < val ) { 
-          _max_val = val;
-      }
-
-      _counter++;
-      uint32_t now = millis();
-      if( now - _prev_ms > 1000 ) { 
-        _prev_ms = now;
-        LOGI("ExtendChan samples/s: %u, amplitude: %d", _counter, _max_val);
-        _counter = 0;
-        _max_val = 0;
-      }
-    }
-    return samples * Cn * sizeof(T);
-  }
-
-  private:
-  T _max_val;
-  uint32_t _counter;
-  uint32_t _prev_ms;
-};
-
 
 // Type of a channel sample, number of channels and sample rate
 typedef int32_t in_chan_t;            // received sample size: low 24 of 32 bits, see INMP441 datasheet
@@ -185,18 +136,9 @@ private:
 
 
 I2SStream i2s;  // INMP441 delivers 24 as 32bit
-
-Convert024to16 cvt(i2s);
-// FormatConverterStream cvt(i2s);  // INMP441 delivers 32bit, AudioWAVServer needs 16bit
-
-// ExtendChan<out_chan_t, NumChan, 0> extend;  // one channel has no data, see INMP441 datasheet
-// ConverterFillLeftAndRight<out_chan_t> extend(RightIsEmpty); // fill both channels - or change to RightIsEmpty
-
-EncodedAudioStream dec(&Serial1, new ADPCMDecoder(AV_CODEC_ID_ADPCM_IMA_WAV)); // encode and write
-EncodedAudioStream enc(&dec, new ADPCMEncoder(AV_CODEC_ID_ADPCM_IMA_WAV)); // encode and write
-
-// AudioWAVServer srv(MY_SSID, MY_PASS);  // Streaming with VLC and Chrome works, Firefox downloads.
-StreamCopy copier(enc, cvt, 128); 
+Convert024to16 cvt(i2s);  // convert 2ch 24bit to 1ch 16bit
+EncodedAudioStream enc(&Serial1, new ADPCMEncoder(AV_CODEC_ID_ADPCM_IMA_WAV));  // encode and write
+StreamCopy copier(enc, cvt, 128);  // data pump
 
 
 void setup() {
@@ -212,18 +154,13 @@ void setup() {
   icfg.pin_bck = 16;
 
   i2s.begin(icfg);
-  cvt.begin();  // in, out);
+  cvt.begin();
   enc.begin(out);
-  dec.begin(out);
 
-  // srv.begin(cvt, out);  // , &extend);
-  // srv.begin() should have set correct bit rate but always picks 44100, so set again:
-  // auto wcfg = srv.wavEncoder().defaultConfig();
-  // wcfg.copyFrom(out);
-  // srv.wavEncoder().setAudioInfo(wcfg);
-  uint8_t rx=18;
-  uint8_t tx=19;
+  uint8_t rx=27;
+  uint8_t tx=22;
   Serial1.begin(460800, SERIAL_8N1, rx, tx, false, 200);
+  
   copier.begin();
 }
 

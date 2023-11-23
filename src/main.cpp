@@ -11,7 +11,7 @@
 #include <Arduino.h>
 
 #include "AudioTools.h"
-#include "AudioCodecs/ContainerBinary.h"
+#include "AudioCodecs/ContainerOgg.h"
 #include "AudioCodecs/CodecADPCM.h"
 // can hang #include "AudioCodecs/CodecSBC.h"
 // noise #include "AudioCodecs/CodecAPTX.h"
@@ -147,7 +147,8 @@ private:
 
 I2SStream i2s;  // INMP441 delivers 24 as 32bit
 Convert024to16 cvt(i2s);  // convert 2ch 24bit to 1ch 16bit
-BinaryContainerEncoder bcd(new ADPCMEncoder(AV_CODEC_ID_ADPCM_IMA_WAV));
+ADPCMEncoder adpcm(AV_CODEC_ID_ADPCM_IMA_WAV);
+OggContainerEncoder bcd(&adpcm);
 EncodedAudioStream enc(&Serial1, &bcd);
 // can hang EncodedAudioStream enc(&Serial1, new BinaryContainerEncoder(new SBCEncoder()));
 // noise EncodedAudioStream enc(&Serial1, new BinaryContainerEncoder(new APTXEncoder()));

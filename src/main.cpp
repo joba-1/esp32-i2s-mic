@@ -11,11 +11,12 @@
 #include <Arduino.h>
 
 #include "AudioTools.h"
-#include "AudioCodecs/ContainerBinary.h"
-#include "AudioCodecs/CodecADPCM.h"
+// #include "AudioCodecs/ContainerBinary.h"
+// #include "AudioCodecs/CodecADPCM.h"
 // can hang #include "AudioCodecs/CodecSBC.h"
 // noise #include "AudioCodecs/CodecAPTX.h"
-// #include "AudioCodecs/CodecLC3.h"
+// silent errors #include "AudioCodecs/CodecLC3.h"
+#include "AudioCodecs/CodecL8.h"
 
 
 // Type of a channel sample, number of channels and sample rate
@@ -147,11 +148,12 @@ private:
 
 I2SStream i2s;  // INMP441 delivers 24 as 32bit
 Convert024to16 cvt(i2s);  // convert 2ch 24bit to 1ch 16bit
-BinaryContainerEncoder bcd(new ADPCMEncoder(AV_CODEC_ID_ADPCM_IMA_WAV));
-EncodedAudioStream enc(&Serial1, &bcd);
+// BinaryContainerEncoder bcd(new ADPCMEncoder(AV_CODEC_ID_ADPCM_IMA_WAV));
+// EncodedAudioStream enc(&Serial1, &bcd);
 // can hang EncodedAudioStream enc(&Serial1, new BinaryContainerEncoder(new SBCEncoder()));
 // noise EncodedAudioStream enc(&Serial1, new BinaryContainerEncoder(new APTXEncoder()));
 // silent errors EncodedAudioStream enc(&Serial1, new BinaryContainerEncoder(new LC3Encoder()));
+EncodedAudioStream enc(&Serial1, new EncoderL8());
 StreamCopy copier(enc, cvt, 1024);  // data pump
 
 

@@ -11,12 +11,12 @@
 #include <Arduino.h>
 
 #include "AudioTools.h"
-// #include "AudioCodecs/ContainerBinary.h"
-// #include "AudioCodecs/CodecADPCM.h"
+#include "AudioCodecs/ContainerBinary.h"
+#include "AudioCodecs/CodecADPCM.h"
 // can hang #include "AudioCodecs/CodecSBC.h"
 // noise #include "AudioCodecs/CodecAPTX.h"
 // silent errors #include "AudioCodecs/CodecLC3.h"
-#include "AudioCodecs/CodecL8.h"
+// too slow #include "AudioCodecs/CodecL8.h"
 
 
 // Type of a channel sample, number of channels and sample rate
@@ -102,7 +102,6 @@ public:
 
       for( size_t ch=0; ch < OutChans; ch++ ) {  // assumes OutChans <= InChans
         // convert one 24bit value in 32bits to 16bit value and store in buffer
-        // *((out_chan_t *)buffer + i) = (out_chan_t)((value & 0xffffff) >> 8);
         uint8_t *val = (uint8_t *)&value[0];  // &value[ch]
         // INMP441 with L/R pin = Gnd: val[0-3] = [zero, noise, low, high]
         out_chan_t v2 = (out_chan_t)(val[3] << 8 | val[2]);
@@ -148,12 +147,12 @@ private:
 
 I2SStream i2s;  // INMP441 delivers 24 as 32bit
 Convert024to16 cvt(i2s);  // convert 2ch 24bit to 1ch 16bit
-// BinaryContainerEncoder bcd(new ADPCMEncoder(AV_CODEC_ID_ADPCM_IMA_WAV));
-// EncodedAudioStream enc(&Serial1, &bcd);
+BinaryContainerEncoder bcd(new ADPCMEncoder(AV_CODEC_ID_ADPCM_IMA_WAV));
+EncodedAudioStream enc(&Serial1, &bcd);
 // can hang EncodedAudioStream enc(&Serial1, new BinaryContainerEncoder(new SBCEncoder()));
 // noise EncodedAudioStream enc(&Serial1, new BinaryContainerEncoder(new APTXEncoder()));
 // silent errors EncodedAudioStream enc(&Serial1, new BinaryContainerEncoder(new LC3Encoder()));
-EncodedAudioStream enc(&Serial1, new EncoderL8());
+// too slow EncodedAudioStream enc(&Serial1, new EncoderL8());
 StreamCopy copier(enc, cvt, 1024);  // data pump
 
 
@@ -171,7 +170,7 @@ void setup() {
 
   i2s.begin(icfg);
   cvt.begin();
-  // bcd.setAudioInfo(out);
+  bcd.setAudioInfo(out);
   enc.begin(out);
 
   uint8_t rx=27;

@@ -4,7 +4,6 @@
  * - #define COPY_LOG_OFF or change AudioLogger level to Warning to avoid hickups
  * - Adjust pin numbers in setup() according to your board
  * - Works fine with Chrome or VLC, my INMP441 and git main of ESP32 pio platform and arduino-audio-tools as of Nov 2023
- * - Works with I2S_MSB_FORMAT (datasheet), and also with I2S_STD_FORMAT, I2S_PHILIPS_FORMAT or I2S_LEFT_JUSTIFIED_FORMAT
  * 
  * have fun, JoBa-1
  */
@@ -12,7 +11,12 @@
 #include <Arduino.h>
 
 #include "AudioTools.h"
+#include "AudioCodecs/ContainerBinary.h"
 #include "AudioCodecs/CodecADPCM.h"
+// can hang #include "AudioCodecs/CodecSBC.h"
+// noise #include "AudioCodecs/CodecAPTX.h"
+// #include "AudioCodecs/CodecLC3.h"
+
 
 // Type of a channel sample, number of channels and sample rate
 typedef int32_t in_chan_t;            // received sample size: low 24 of 32 bits, see INMP441 datasheet
@@ -143,7 +147,11 @@ private:
 
 I2SStream i2s;  // INMP441 delivers 24 as 32bit
 Convert024to16 cvt(i2s);  // convert 2ch 24bit to 1ch 16bit
-EncodedAudioStream enc(&Serial1, new ADPCMEncoder(AV_CODEC_ID_ADPCM_IMA_WAV));
+BinaryContainerEncoder bcd(new ADPCMEncoder(AV_CODEC_ID_ADPCM_IMA_WAV));
+EncodedAudioStream enc(&Serial1, &bcd);
+// can hang EncodedAudioStream enc(&Serial1, new BinaryContainerEncoder(new SBCEncoder()));
+// noise EncodedAudioStream enc(&Serial1, new BinaryContainerEncoder(new APTXEncoder()));
+// silent errors EncodedAudioStream enc(&Serial1, new BinaryContainerEncoder(new LC3Encoder()));
 StreamCopy copier(enc, cvt, 1024);  // data pump
 
 
@@ -161,6 +169,7 @@ void setup() {
 
   i2s.begin(icfg);
   cvt.begin();
+  // bcd.setAudioInfo(out);
   enc.begin(out);
 
   uint8_t rx=27;

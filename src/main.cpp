@@ -148,8 +148,8 @@ private:
 I2SStream i2s;  // INMP441 delivers 24 as 32bit
 Convert024to16 cvt(i2s);  // convert 2ch 24bit to 1ch 16bit
 ADPCMEncoder adpcm(AV_CODEC_ID_ADPCM_IMA_WAV);
-OggContainerEncoder bcd(&adpcm);
-EncodedAudioStream enc(&Serial1, &bcd);
+// OggContainerEncoder bcd(&adpcm);
+EncodedAudioStream enc(&Serial1, &adpcm);
 // can hang EncodedAudioStream enc(&Serial1, new BinaryContainerEncoder(new SBCEncoder()));
 // noise EncodedAudioStream enc(&Serial1, new BinaryContainerEncoder(new APTXEncoder()));
 // silent errors EncodedAudioStream enc(&Serial1, new BinaryContainerEncoder(new LC3Encoder()));
@@ -171,7 +171,7 @@ void setup() {
 
   i2s.begin(icfg);
   cvt.begin();
-  bcd.setAudioInfo(out);
+  // bcd.setAudioInfo(out);
   enc.begin(out);
 
   uint8_t rx=27;
